@@ -1,0 +1,37 @@
+abstract final class Routes {
+  static const splash = 'splash';
+  static const onboarding = 'onboarding';
+  static const welcome = 'welcome';
+  static const legal = 'onboarding-terms';
+  static const signIn = 'sign-in';
+  static const signUp = 'create-account';
+  static const welcomeBack = 'welcome-back';
+  static const recovery = 'forgot-password';
+  static const home = 'home';
+  static const properties = 'properties';
+  static const property = 'property';
+  static const earnings = 'earnings';
+  static const notifications = 'notifications';
+  static const notification = 'notification';
+  static const chat = 'support-chat';
+  static const submit = 'submit';
+  static const profile = 'profile';
+  static const editProfile = 'edit-profile';
+  static const payout = 'payout-account';
+  static const newPayout = 'new-payout';
+  static const notificationPreferences = 'notification-preferences';
+  static const language = 'language';
+  static const security = 'security';
+  static const password = 'change-password';
+  static const pin = 'change-pin';
+  static const biometrics = 'biometrics';
+  static const devices = 'devices';
+  static const twoFactor = 'two-factor';
+  static const twoFactorSms = 'two-factor-sms';
+  static const twoFactorApp = 'two-factor-app';
+  static const help = 'help';
+  static const about = 'about';
+  static const privacy = 'privacy';
+  static const terms = 'terms';
+  static const experience = 'experience';
+}

@@ -1,0 +1,574 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Experience {
+  investor
+  landowner
+}
+
+enum EntityType {
+  individual
+  company
+  trust
+  stokvel
+}
+
+enum AdminRole {
+  admin
+  ops
+  compliance
+}
+
+enum VerificationStatus {
+  incomplete
+  pending
+  correctionRequired
+  verified
+}
+
+enum PropertyStatus {
+  draft
+  underReview
+  offerReady
+  live
+  paused
+}
+
+enum ProjectStatus {
+  open
+  funded
+  closed
+}
+
+enum TransactionKind {
+  investment
+  distribution
+  topUp
+  withdrawal
+  refund
+}
+
+enum TransactionStatus {
+  successful
+  pending
+  failed
+}
+
+enum InvestmentStatus {
+  active
+  completed
+  underfunded
+}
+
+enum PaymentMethodKind {
+  card
+  bankAccount
+}
+
+enum LedgerAccountType {
+  userWallet
+  heldPrincipal
+  platformClearing
+  feeRevenue
+  projectCapacity
+}
+
+enum ChallengePurpose {
+  investorRegistration
+  passwordRecovery
+  twoFactor
+}
+
+model User {
+  id             String    @id @default(uuid())
+  email          String    @unique
+  passwordHash   String
+  name           String
+  phone          String    @default("")
+  address        String    @default("")
+  countryCode    String    @default("ZA")
+  hasProfilePhoto Boolean  @default(false)
+  nonResident    Boolean   @default(false)
+  investorNumber String?  @unique
+  locked         Boolean   @default(false)
+  pinHash        String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  memberships        Membership[]
+  refreshTokens      RefreshToken[]
+  entities           InvestorEntity[]
+  favourites         Favourite[]
+  searchHistory      SearchHistory[]
+  notifications      Notification[]
+  chatMessages       ChatMessage[]
+  landownerProperties Property[]
+  submissionDrafts   SubmissionDraft[]
+  payoutAccount      PayoutAccount?
+  preferences        UserPreferences?
+  securityPrefs      SecurityPreferences?
+  paymentMethods     PaymentMethod[]
+  devices            DeviceInstallation[]
+  auditLogs          AuditLog[]           @relation("AuditActor")
+  challenges         AuthChallenge[]
+}
+
+model Membership {
+  id         String     @id @default(uuid())
+  userId     String
+  experience Experience
+  createdAt  DateTime   @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, experience])
+}
+
+model AdminUser {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  passwordHash String
+  name         String
+  role         AdminRole @default(ops)
+  locked       Boolean   @default(false)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  auditLogs AuditLog[] @relation("AdminAuditActor")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String
+  tokenHash String
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tokenHash])
+}
+
+model AuthChallenge {
+  id        String           @id @default(uuid())
+  userId    String?
+  email     String
+  purpose   ChallengePurpose
+  codeHash  String
+  payload   Json?
+  verified  Boolean          @default(false)
+  attempts  Int              @default(0)
+  expiresAt DateTime
+  createdAt DateTime         @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([email, purpose])
+}
+
+model InvestorEntity {
+  id                 String             @id @default(uuid())
+  userId             String
+  entityType         EntityType
+  nonResident        Boolean            @default(false)
+  verificationStatus VerificationStatus @default(incomplete)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  walletAccount  LedgerAccount?
+  kycDraft       KycDraft?
+  investments    Investment[]
+  transactions   Transaction[]
+  favourites     Favourite[]
+  notifications  Notification[]
+  paymentMethods PaymentMethod[]
+  quotes         InvestmentQuote[]
+
+  @@unique([userId, entityType])
+}
+
+model Project {
+  id              String        @id @default(uuid())
+  slug            String        @unique
+  name            String
+  town            String
+  description     String        @default("")
+  annualRateBps   Int
+  termMonths      Int           @default(36)
+  minInvestCents  BigInt        @default(100)
+  capacityCents   BigInt
+  fundedCents     BigInt        @default(0)
+  currency        String        @default("ZAR")
+  status          ProjectStatus @default(open)
+  imageUrl        String?
+  contentJson     Json?
+  publishedAt     DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  favourites  Favourite[]
+  investments Investment[]
+  quotes      InvestmentQuote[]
+  propertyId  String?     @unique
+  property    Property?   @relation(fields: [propertyId], references: [id])
+}
+
+model Favourite {
+  id       String   @id @default(uuid())
+  userId   String
+  entityId String
+  projectId String
+  createdAt DateTime @default(now())
+
+  user    User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  entity  InvestorEntity @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  project Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([entityId, projectId])
+}
+
+model SearchHistory {
+  id        String   @id @default(uuid())
+  userId    String
+  query     String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model LedgerAccount {
+  id        String            @id @default(uuid())
+  type      LedgerAccountType
+  userId    String?
+  entityId  String?           @unique
+  currency  String            @default("ZAR")
+  createdAt DateTime          @default(now())
+
+  entity  InvestorEntity? @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  entries LedgerEntry[]
+}
+
+model LedgerEntry {
+  id            String   @id @default(uuid())
+  accountId     String
+  transactionId String?
+  amountCents   BigInt
+  balanceAfter  BigInt
+  memo          String   @default("")
+  createdAt     DateTime @default(now())
+
+  account     LedgerAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  transaction Transaction?  @relation(fields: [transactionId], references: [id])
+
+  @@index([accountId, createdAt])
+}
+
+model Transaction {
+  id            String            @id @default(uuid())
+  entityId      String
+  kind          TransactionKind
+  status        TransactionStatus @default(pending)
+  amountCents   BigInt
+  feeCents      BigInt            @default(0)
+  currency      String            @default("ZAR")
+  reference     String            @unique
+  idempotencyKey String?
+  projectId     String?
+  investmentId  String?
+  methodId      String?
+  metadata      Json?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  entity      InvestorEntity @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  ledgerEntries LedgerEntry[]
+
+  @@unique([entityId, idempotencyKey])
+  @@index([entityId, createdAt])
+}
+
+model InvestmentQuote {
+  id           String   @id @default(uuid())
+  entityId     String
+  projectId    String
+  amountCents  BigInt
+  rateBps      Int
+  termMonths   Int
+  expiresAt    DateTime
+  consumedAt   DateTime?
+  createdAt    DateTime @default(now())
+
+  entity  InvestorEntity @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  project Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model Investment {
+  id              String           @id @default(uuid())
+  entityId        String
+  projectId       String
+  amountCents     BigInt
+  rateBps         Int
+  termMonths      Int
+  status          InvestmentStatus @default(active)
+  quoteId         String?
+  principalHeld   Boolean          @default(true)
+  maturedAt       DateTime?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  entity  InvestorEntity @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  project Project        @relation(fields: [projectId], references: [id])
+  milestones InvestmentMilestone[]
+
+  @@index([entityId])
+}
+
+model InvestmentMilestone {
+  id           String   @id @default(uuid())
+  investmentId String
+  stage        String
+  title        String
+  dueAt        DateTime?
+  completedAt  DateTime?
+  amountCents  BigInt?
+
+  investment Investment @relation(fields: [investmentId], references: [id], onDelete: Cascade)
+}
+
+model PaymentMethod {
+  id            String            @id @default(uuid())
+  entityId      String
+  userId        String
+  kind          PaymentMethodKind
+  name          String
+  lastFour      String
+  holder        String
+  expiry        String            @default("")
+  bankType      String            @default("")
+  branchCode    String            @default("")
+  reusable      Boolean           @default(true)
+  isDefault     Boolean           @default(false)
+  providerToken String?
+  createdAt     DateTime          @default(now())
+
+  entity InvestorEntity @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  user   User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model KycDraft {
+  id         String             @id @default(uuid())
+  entityId   String             @unique
+  fields     Json               @default("{}")
+  status     VerificationStatus @default(incomplete)
+  reviewNote String?
+  submittedAt DateTime?
+  reviewedAt DateTime?
+  reviewedBy String?
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+
+  entity    InvestorEntity @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  documents Document[]
+  members   KycMember[]
+  invites   KycInvite[]
+}
+
+model KycMember {
+  id         String @id @default(uuid())
+  draftId    String
+  role       String
+  fields     Json   @default("{}")
+  allocation Int    @default(0)
+
+  draft     KycDraft  @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  documents Document[]
+}
+
+model KycInvite {
+  id        String   @id @default(uuid())
+  draftId   String
+  email     String
+  role      String
+  token     String   @unique @default(uuid())
+  accepted  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  draft KycDraft @relation(fields: [draftId], references: [id], onDelete: Cascade)
+}
+
+model Document {
+  id           String    @id @default(uuid())
+  draftId      String?
+  memberId     String?
+  propertyId   String?
+  submissionId String?
+  key          String
+  name         String
+  mimeType     String
+  sizeBytes    Int
+  storageKey   String
+  deletedAt    DateTime?
+  createdAt    DateTime  @default(now())
+
+  draft      KycDraft?        @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  member     KycMember?       @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  property   Property?        @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  submission SubmissionDraft? @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+}
+
+model Property {
+  id             String         @id @default(uuid())
+  ownerId        String
+  name           String
+  town           String
+  address        String         @default("")
+  erf            String         @default("")
+  size           String         @default("")
+  status         PropertyStatus @default(draft)
+  fundingPercent Int            @default(0)
+  draftStep      Int            @default(1)
+  metadata       Json?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  owner     User       @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  documents Document[]
+  project   Project?
+  payouts   LandownerPayout[]
+}
+
+model SubmissionDraft {
+  id        String   @id @default(uuid())
+  ownerId   String
+  draftKey  String
+  step      Int      @default(1)
+  payload   Json     @default("{}")
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+
+  owner     User       @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  documents Document[]
+
+  @@unique([ownerId, draftKey])
+}
+
+model LandownerPayout {
+  id           String   @id @default(uuid())
+  propertyId   String
+  propertyName String
+  amountCents  BigInt
+  period       String
+  paidAt       DateTime
+  createdAt    DateTime @default(now())
+
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+}
+
+model PayoutAccount {
+  id         String   @id @default(uuid())
+  userId     String   @unique
+  bank       String
+  number     String
+  type       String
+  branchCode String
+  holder     String
+  proofKey   String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model UserPreferences {
+  id       String @id @default(uuid())
+  userId   String @unique
+  channels Json   @default("{}")
+  topics   Json   @default("{}")
+  language String @default("English (UK)")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model SecurityPreferences {
+  id               String  @id @default(uuid())
+  userId           String  @unique
+  biometrics       Json    @default("{}")
+  twoFactorEnabled Boolean @default(false)
+  previousDevices  Json    @default("[]")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  entityId  String?
+  title     String
+  body      String
+  kind      String
+  readAt    DateTime?
+  payload   Json?
+  createdAt DateTime @default(now())
+
+  user   User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  entity InvestorEntity? @relation(fields: [entityId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+}
+
+model ChatMessage {
+  id        String   @id @default(uuid())
+  userId    String
+  text      String
+  fromSupport Boolean @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model DeviceInstallation {
+  id               String   @id @default(uuid())
+  userId           String?
+  platform         String
+  appVersion       String?
+  pushSubscription String?
+  permissionState  String   @default("unknown")
+  metadata         Json?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+}
+
+model SystemConfig {
+  id    String @id @default(uuid())
+  key   String @unique
+  value Json
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  actorUserId String?
+  actorAdminId String?
+  action     String
+  resource   String
+  resourceId String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  actorUser  User?      @relation("AuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  actorAdmin AdminUser? @relation("AdminAuditActor", fields: [actorAdminId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+}

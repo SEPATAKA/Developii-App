@@ -1,0 +1,55 @@
+name: developify_mobile
+description: Developify property development for landowners and investors.
+publish_to: none
+version: 1.0.0+6
+environment:
+  sdk: ^3.12.2
+  flutter: '>=3.44.4'
+dependencies:
+  flutter:
+    sdk: flutter
+  mobx: ^2.6.0
+  flutter_mobx: ^2.3.0
+  go_router: ^17.3.0
+  get_it: ^9.2.1
+  flutter_screenutil: ^5.9.3
+  dio: ^5.9.2
+  flutter_svg: ^2.3.0
+  flutter_secure_storage: ^10.3.1
+  another_flushbar: ^2.2.4
+  onesignal_flutter: ^5.6.3
+  firebase_core: ^4.15.0
+  firebase_analytics: ^12.4.3
+  firebase_crashlytics: ^5.2.4
+  firebase_remote_config: ^6.5.3
+  firebase_performance: ^0.11.4+3
+dev_dependencies:
+  crypto: 3.0.7
+  image: 4.9.2
+  flutter_test:
+    sdk: flutter
+  integration_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  build_runner: ^2.15.0
+  mobx_codegen: ^2.7.7
+flutter:
+  config:
+    enable-swift-package-manager: false
+  uses-material-design: true
+  assets:
+    - assets/branding/
+    - assets/icons/
+    - assets/images/
+    - assets/fonts/TASA-Orbiter-OFL.txt
+  fonts:
+    - family: TASA Orbiter Display
+      fonts:
+        - asset: assets/fonts/TASAOrbiterDisplay-Regular.otf
+          weight: 400
+        - asset: assets/fonts/TASAOrbiterDisplay-Medium.otf
+          weight: 500
+        - asset: assets/fonts/TASAOrbiterDisplay-SemiBold.otf
+          weight: 600
+        - asset: assets/fonts/TASAOrbiterDisplay-Bold.otf
+          weight: 700

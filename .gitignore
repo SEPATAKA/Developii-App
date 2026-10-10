@@ -5,9 +5,19 @@
 # Flutter generated files
 **/.dart_tool/
 **/build/
+**/.gradle/
+**/node_modules/
+**/dist/
+**/coverage/
 **/.flutter-plugins
 **/.flutter-plugins-dependencies
 
 # Secrets
 **/.env
 **/.env.*
+!**/.env.example
+
+# Local diagnostics
+**/test_output.txt
+**/*.log
+**/.DS_Store
