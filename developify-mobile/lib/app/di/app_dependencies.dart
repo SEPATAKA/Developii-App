@@ -25,9 +25,12 @@ import 'package:developify_mobile/features/investor/presentation/stores/kyc_stor
 import 'package:developify_mobile/features/investor/presentation/stores/kyc_member_store.dart';
 import 'package:developify_mobile/features/investor/presentation/stores/wallet_store.dart';
 import 'package:developify_mobile/features/investor/presentation/stores/investor_home_store.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:get_it/get_it.dart';
 import 'package:developify_mobile/app/environment/app_environment.dart';
+import 'package:developify_mobile/firebase_options.dart';
 import 'package:developify_mobile/core/network/api_client.dart';
 import 'package:developify_mobile/core/services/mock_behavior.dart';
 import 'package:developify_mobile/core/services/push_notification_service.dart';
@@ -76,6 +79,12 @@ final class AppDependencies {
     SessionService? session,
     DateTime Function()? mockClock,
   }) async {
+    if (!environment.mockMode && environment.apiUri == null) {
+      throw StateError(
+        'Live mode requires a valid API_BASE_URL. Mock repositories are not '
+        'selected implicitly; set MOCK_MODE=true only for an intentional demo.',
+      );
+    }
     final get = GetIt.asNewInstance();
     final sessionService = session ?? SessionService();
     final tokens =
@@ -84,7 +93,17 @@ final class AppDependencies {
             ? MemoryTokenStorage()
             : SecureTokenStorage(const FlutterSecureStorage()));
     final services =
-        telemetry ?? await TelemetryServices.initialize(environment);
+        telemetry ??
+        await TelemetryServices.initialize(
+          environment,
+          options: environment.firebaseEnabled
+              ? DefaultFirebaseOptions.currentPlatform
+              : null,
+        );
+    final firebaseAuth =
+        environment.firebaseEnabled && services.firebaseConfigured
+        ? FirebaseAuth.instanceFor(app: Firebase.app())
+        : null;
     final push = OneSignalPushService(environment.oneSignalAppId);
     await push.initialize();
     final useApi = !environment.mockMode && environment.apiUri != null;
@@ -94,7 +113,10 @@ final class AppDependencies {
       dispose: (value) => value.dispose(),
     );
     get.registerSingleton<TokenStorage>(tokens);
-    get.registerSingleton<AuthTokenProvider>(tokens);
+    final authTokenProvider = firebaseAuth == null
+        ? tokens
+        : FirebaseAuthTokenProvider(firebaseAuth);
+    get.registerSingleton<AuthTokenProvider>(authTokenProvider);
     get.registerSingleton<TelemetryServices>(services);
     get.registerSingleton<AnalyticsService>(services.analytics);
     get.registerSingleton<CrashReporter>(services.crashes);
@@ -104,7 +126,10 @@ final class AppDependencies {
       push,
       dispose: (value) => value.dispose(),
     );
-    final apiClient = ApiClient(environment: environment, tokens: tokens);
+    final apiClient = ApiClient(
+      environment: environment,
+      tokens: authTokenProvider,
+    );
     get.registerSingleton<ApiClient>(
       apiClient,
       dispose: (value) => value.dispose(),
@@ -119,9 +144,14 @@ final class AppDependencies {
     );
 
     if (useApi) {
-      final authRepo = ApiAuthRepository(apiClient, tokens);
-      apiClient.setRefreshHandler(authRepo.refreshSession);
-      get.registerSingleton<AuthRepository>(authRepo);
+      final configuredAuthRepo = ApiAuthRepository(
+        apiClient,
+        tokens,
+        firebaseAuth: firebaseAuth,
+        firebaseAuthRequired: environment.firebaseEnabled,
+      );
+      apiClient.setRefreshHandler(configuredAuthRepo.refreshSession);
+      get.registerSingleton<AuthRepository>(configuredAuthRepo);
       get.registerSingleton<TransactionAuthorization>(
         ApiTransactionAuthorization(sessionService, apiClient),
         dispose: (value) => value.dispose(),
@@ -315,6 +345,7 @@ final class AppDependencies {
         sessionService,
         get<TransactionAuthorization>(),
         entity: entity,
+        isMock: !useApi,
       )..nonResident = nonResident,
     );
     return AppDependencies._(get);

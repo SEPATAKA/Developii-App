@@ -1,7 +1,16 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 abstract interface class AuthTokenProvider {
   Future<String?> readToken();
+}
+
+final class FirebaseAuthTokenProvider implements AuthTokenProvider {
+  FirebaseAuthTokenProvider(this._auth);
+  final FirebaseAuth _auth;
+
+  @override
+  Future<String?> readToken() async => _auth.currentUser?.getIdToken();
 }
 
 abstract interface class TokenStorage implements AuthTokenProvider {

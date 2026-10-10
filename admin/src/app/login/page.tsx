@@ -3,11 +3,16 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api, setSession } from '@/lib/api';
+import { firebaseAuth } from '@/lib/firebase';
+import {
+  sendEmailVerification,
+  signInWithEmailAndPassword,
+} from 'firebase/auth';
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState('admin@developify.co.za');
-  const [password, setPassword] = useState('Developify@Admin1');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -16,17 +21,36 @@ export default function LoginPage() {
     setLoading(true);
     setError('');
     try {
+      const credential = await signInWithEmailAndPassword(
+        firebaseAuth,
+        email.trim(),
+        password,
+      );
+      if (!credential.user.emailVerified) {
+        await sendEmailVerification(credential.user);
+        throw new Error(
+          'Verify your email using the link we just sent, then sign in again.',
+        );
+      }
+      const idToken = await credential.user.getIdToken(true);
       const result = await api<{
         accessToken: string;
         admin: { id: string; email: string; name: string; role: string };
-      }>('/auth/admin/sign-in', {
+      }>('/auth/admin/firebase-session', {
         method: 'POST',
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ idToken }),
       });
       setSession(result);
       router.replace('/dashboard');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Sign-in failed');
+      const code = (err as { code?: string }).code;
+      setError(
+        code?.startsWith('auth/')
+          ? 'Invalid email or password, or Firebase Authentication is unavailable.'
+          : err instanceof Error
+            ? err.message
+            : 'Sign-in failed',
+      );
     } finally {
       setLoading(false);
     }

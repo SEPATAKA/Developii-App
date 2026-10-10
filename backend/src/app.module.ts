@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { FirebaseAdminModule } from './firebase/firebase-admin.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
@@ -22,6 +23,7 @@ import { AdminRolesGuard, JwtAuthGuard } from './modules/common/guards';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    FirebaseAdminModule,
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 120 }]),
     PrismaModule,
     MailModule,

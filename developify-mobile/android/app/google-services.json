@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "445207943313",
+    "project_id": "developify-5615a",
+    "storage_bucket": "developify-5615a.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:445207943313:android:07dc6fc3eb51b8c23a8730",
+        "android_client_info": {
+          "package_name": "za.co.developify.developify_mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAzaVvq-m3a5LAGSBFrBtPMadDtYhDZI3w"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

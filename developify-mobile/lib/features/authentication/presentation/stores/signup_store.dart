@@ -48,6 +48,8 @@ abstract class SignupStoreBase with Store, Lifecycle {
   String? error;
   @observable
   bool invalidCredentials = false;
+  @observable
+  bool verificationSent = false;
 
   @computed
   bool get detailsFilled => canAttemptDetails && phone.trim().isNotEmpty;
@@ -79,6 +81,7 @@ abstract class SignupStoreBase with Store, Lifecycle {
   void _clearError() {
     error = null;
     invalidCredentials = false;
+    verificationSent = false;
   }
 
   @action
@@ -168,6 +171,7 @@ abstract class SignupStoreBase with Store, Lifecycle {
     }
     status = LoadStatus.loading;
     error = null;
+    verificationSent = false;
     final request = beginRequest();
     final result = await _repository.registerLandowner(
       LandownerRegistration(
@@ -185,7 +189,11 @@ abstract class SignupStoreBase with Store, Lifecycle {
           status = LoadStatus.success;
           password = '';
           confirmation = '';
-          _session.signIn(value, experience: Experience.landowner);
+          if (_repository.emailVerificationPending) {
+            verificationSent = true;
+          } else {
+            _session.signIn(value, experience: Experience.landowner);
+          }
           return true;
         case Failure(:final error):
           status = LoadStatus.error;

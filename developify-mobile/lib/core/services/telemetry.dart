@@ -161,14 +161,15 @@ final class TelemetryServices {
           ? await Firebase.initializeApp(options: options)
           : Firebase.app();
       final analytics = FirebaseAnalytics.instanceFor(app: app);
-      final crashlytics = FirebaseCrashlytics.instance;
+      final crashlytics = kIsWeb ? null : FirebaseCrashlytics.instance;
       final performance = FirebasePerformance.instance;
       final config = FirebaseRemoteConfig.instanceFor(app: app);
       await Future.wait([
         analytics.setAnalyticsCollectionEnabled(environment.telemetryEnabled),
-        crashlytics.setCrashlyticsCollectionEnabled(
-          environment.telemetryEnabled,
-        ),
+        if (crashlytics != null)
+          crashlytics.setCrashlyticsCollectionEnabled(
+            environment.telemetryEnabled,
+          ),
         performance.setPerformanceCollectionEnabled(
           environment.telemetryEnabled,
         ),
@@ -184,7 +185,7 @@ final class TelemetryServices {
         analytics: environment.telemetryEnabled
             ? FirebaseAnalyticsService(analytics)
             : NoopAnalytics(),
-        crashes: environment.telemetryEnabled
+        crashes: environment.telemetryEnabled && crashlytics != null
             ? FirebaseCrashReporter(crashlytics)
             : NoopCrashReporter(),
         config: FirebaseFeatureConfig(config),

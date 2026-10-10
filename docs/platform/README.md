@@ -71,6 +71,7 @@ Keep `MOCK_MODE=true` (default) for offline demo and the maintained test suite.
 
 ## Security notes
 
+- Firebase Authentication is being introduced as the identity provider; Firebase Admin credentials must be injected into the API from Secret Manager (or supplied through Google Cloud Application Default Credentials). Never put service-account credentials in mobile, admin, source control, or build-time defines.
 - Access JWT + rotating refresh tokens
 - Argon2id password hashes
 - Rate-limited auth/OTP

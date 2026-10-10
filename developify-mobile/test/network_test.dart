@@ -1,11 +1,15 @@
 import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:developify_mobile/app/di/app_dependencies.dart';
 import 'package:developify_mobile/app/environment/app_environment.dart';
 import 'package:developify_mobile/core/errors/result.dart';
 import 'package:developify_mobile/core/network/api_client.dart';
 import 'package:developify_mobile/core/network/api_error_mapper.dart';
 import 'package:developify_mobile/core/storage/token_storage.dart';
+import 'package:developify_mobile/features/authentication/data/api_auth_repository.dart';
+import 'package:developify_mobile/features/authentication/data/mock_auth_repository.dart';
+import 'package:developify_mobile/features/authentication/domain/auth_repository.dart';
 
 class RecordingAdapter implements HttpClientAdapter {
   final List<RequestOptions> requests = [];
@@ -37,6 +41,51 @@ class RecordingAdapter implements HttpClientAdapter {
 }
 
 void main() {
+  test('Live mode is the default when launch defines are not overridden', () {
+    expect(AppEnvironment.fromDefines().mockMode, isFalse);
+  });
+
+  test('Live mode never silently falls back to mock repositories', () async {
+    await expectLater(
+      AppDependencies.create(
+        environment: const AppEnvironment(mockMode: false),
+        tokenStorage: MemoryTokenStorage(),
+      ),
+      throwsA(isA<StateError>()),
+    );
+  });
+
+  test(
+    'A configured API URL selects live auth unless mock mode is explicit',
+    () async {
+      final live = await AppDependencies.create(
+        environment: const AppEnvironment(
+          apiBaseUrl: 'https://api.example.test',
+          mockMode: false,
+        ),
+        tokenStorage: MemoryTokenStorage(),
+      );
+      try {
+        expect(live.container<AuthRepository>(), isA<ApiAuthRepository>());
+      } finally {
+        await live.dispose();
+      }
+
+      final mock = await AppDependencies.create(
+        environment: const AppEnvironment(
+          apiBaseUrl: 'https://api.example.test',
+          mockMode: true,
+        ),
+        tokenStorage: MemoryTokenStorage(),
+      );
+      try {
+        expect(mock.container<AuthRepository>(), isA<MockAuthRepository>());
+      } finally {
+        await mock.dispose();
+      }
+    },
+  );
+
   test('Configuration rejects insecure and credential-bearing base URLs', () {
     for (final url in [
       '',

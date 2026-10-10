@@ -306,6 +306,24 @@ mixin _$SignupStore on SignupStoreBase, Store {
     });
   }
 
+  late final _$verificationSentAtom = Atom(
+    name: 'SignupStoreBase.verificationSent',
+    context: context,
+  );
+
+  @override
+  bool get verificationSent {
+    _$verificationSentAtom.reportRead();
+    return super.verificationSent;
+  }
+
+  @override
+  set verificationSent(bool value) {
+    _$verificationSentAtom.reportWrite(value, super.verificationSent, () {
+      super.verificationSent = value;
+    });
+  }
+
   late final _$createAccountAsyncAction = AsyncAction(
     'SignupStoreBase.createAccount',
     context: context,
@@ -483,6 +501,7 @@ entity: ${entity},
 status: ${status},
 error: ${error},
 invalidCredentials: ${invalidCredentials},
+verificationSent: ${verificationSent},
 detailsFilled: ${detailsFilled},
 canAttemptDetails: ${canAttemptDetails},
 appearance: ${appearance},

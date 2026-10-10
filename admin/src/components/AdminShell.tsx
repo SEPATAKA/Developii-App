@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { clearSession, getSession } from '@/lib/api';
+import { firebaseAuth } from '@/lib/firebase';
+import { signOut } from 'firebase/auth';
 import { useEffect, useState } from 'react';
 
 const links = [
@@ -70,7 +72,8 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           </nav>
           <button
             className="mt-8 w-full rounded border border-zinc-300 px-3 py-2 text-sm"
-            onClick={() => {
+            onClick={async () => {
+              await signOut(firebaseAuth);
               clearSession();
               router.replace('/login');
             }}

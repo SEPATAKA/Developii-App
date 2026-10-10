@@ -5,6 +5,7 @@ import {
   ChallengeCodeDto,
   ChallengeIdDto,
   InvestorBeginDto,
+  InvestorCompleteDto,
   LandownerRegisterDto,
   RecoveryRequestDto,
   RecoveryVerifyDto,
@@ -13,11 +14,32 @@ import {
   SignInDto,
   SocialSignInDto,
 } from './auth.dto';
+import { IsString, MinLength } from 'class-validator';
 import { AuthUser, CurrentUser, Public } from '../common/auth.decorators';
+
+class FirebaseIdTokenDto {
+  @IsString()
+  @MinLength(20)
+  idToken!: string;
+}
 
 @Controller('auth')
 export class AuthController {
   constructor(private auth: AuthService) {}
+
+  @Public()
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @Post('firebase/session')
+  firebaseSession(@Body() body: FirebaseIdTokenDto) {
+    return this.auth.firebaseUserSession(body.idToken);
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @Post('admin/firebase-session')
+  firebaseAdminSession(@Body() body: FirebaseIdTokenDto) {
+    return this.auth.firebaseAdminSession(body.idToken);
+  }
 
   @Public()
   @Throttle({ default: { limit: 10, ttl: 60000 } })
@@ -38,6 +60,7 @@ export class AuthController {
     return this.auth.registerLandowner(body);
   }
 
+
   @Public()
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('register/investor/begin')
@@ -53,8 +76,8 @@ export class AuthController {
 
   @Public()
   @Post('register/investor/complete')
-  completeInvestor(@Body() body: ChallengeIdDto) {
-    return this.auth.completeInvestorRegistration(body.challengeId);
+  completeInvestor(@Body() body: InvestorCompleteDto) {
+    return this.auth.completeInvestorRegistration(body.challengeId, body.idToken);
   }
 
   @Public()

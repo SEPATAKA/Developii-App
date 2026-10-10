@@ -34,7 +34,7 @@ final class AppEnvironment {
     );
     return AppEnvironment(
       apiBaseUrl: const String.fromEnvironment('API_BASE_URL'),
-      mockMode: const bool.fromEnvironment('MOCK_MODE', defaultValue: true),
+      mockMode: const bool.fromEnvironment('MOCK_MODE', defaultValue: false),
       mockDelay: const Duration(
         milliseconds: int.fromEnvironment('MOCK_DELAY_MS', defaultValue: 350),
       ),

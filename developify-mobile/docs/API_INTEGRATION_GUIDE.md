@@ -2,11 +2,11 @@
 
 [Documentation entry point](../README.md)
 
-For Ngoako Masetla and the receiving engineering team. This is a map of the delivered interfaces and integration responsibilities, **not a working OpenAPI specification**. No production endpoints, provider sessions or deployment pipelines are implemented by this document.
+For Ngoako Masetla and the receiving engineering team. This is a map of the delivered interfaces and integration responsibilities, **not a working OpenAPI specification**. Local backend endpoints and API adapters exist, but this guide does not define a deployed production API contract, provider sessions or deployment pipelines.
 
 ## Integration status and composition
 
-All repository registrations are in [AppDependencies.create](../lib/app/di/app_dependencies.dart). Mock classes under each feature's `data/` folder are registered against interfaces under `domain/`. They preserve loading, empty, validation, retry, cancellation and simulated domain behavior without infrastructure. `MOCK_MODE=false` sets `MockBehavior.available=false`; a configured URL does not substitute live repositories.
+Repository registrations are in [AppDependencies.create](../lib/app/di/app_dependencies.dart). With a valid `API_BASE_URL` and `MOCK_MODE=false` (the default), the app registers the API-backed auth, investor, landowner, notification and profile repositories. Setting `MOCK_MODE=true`, or omitting a valid API URL, selects the mock repositories instead. The API adapters call the configured backend; they do not connect directly to a database.
 
 Replace implementations at this composition root while keeping independent stores, route ownership and typed models. Add agreed server contracts before financial or KYC writes. Some current interfaces deliberately expose synchronous local draft/simulation operations. They are not ready-made network endpoints: introduce explicit asynchronous persistence/quote contracts where required, with targeted tests, rather than hiding unawaited network writes behind synchronous setters.
 
@@ -29,11 +29,11 @@ Every area below uses the shared composition root above. Method signatures and m
 
 ### Authentication and recovery
 
-Contract: [AuthRepository](../lib/features/authentication/domain/auth_repository.dart). Registered implementation: [MockAuthRepository](../lib/features/authentication/data/mock_auth_repository.dart).
+Contract: [AuthRepository](../lib/features/authentication/domain/auth_repository.dart). Implementations: [ApiAuthRepository](../lib/features/authentication/data/api_auth_repository.dart) and [MockAuthRepository](../lib/features/authentication/data/mock_auth_repository.dart).
 
-`signIn(email, password)` and `socialSignIn(provider)` return `Result<AppUser>`. `registerLandowner(LandownerRegistration)` also returns a user. Investor signup is `beginInvestorRegistration(InvestorRegistration) -> Result<String>` challenge ID, `verifyInvestorRegistration(challengeId, code) -> Result<void>`, then `completeInvestorRegistration(challengeId) -> Result<AppUser>`; cancellation accepts `Cancellation`, with `cancelInvestorRegistration` and `clearSession` cleanup. Recovery methods request an email challenge, verify a code and reset a password, each returning `Result<void>`.
+`signIn(email, password)` and `socialSignIn(provider)` return `Result<AppUser>`. `registerLandowner(LandownerRegistration)` also returns a user. With live Firebase enabled, both signup paths create a Firebase Authentication email/password account and send Firebase's email-verification link. Investor signup then creates its backend registration challenge, checks the verified Firebase identity when the user returns to the app, and completes profile provisioning; mock/non-Firebase flows retain their simulated or backend OTP contract. Recovery methods request an email challenge, verify a code and reset a password, each returning `Result<void>`.
 
-Backend work: agreed credentials/challenges, real social provider tokens, challenge expiry/rate limits, validation fields and token issuance. The current registration and recovery calls do not prove an identity or send messages. Keep auth errors safe and distinguish invalid input from expired/forbidden/transport failure. No pagination applies.
+Firebase-enabled investor registration provisions the backend and Firestore profile only after Firebase reports the email as verified; successful completion signs the investor into the local session. Firebase-enabled landowner registration sends the verification link and prevents sign-in until verification. Passwords are submitted only to Firebase Authentication on these paths. Backend/Admin credentials must remain server-side. Confirm social provider tokens, challenge expiry/rate limits and validation fields before production use. Keep auth errors safe and distinguish invalid input from expired/forbidden/transport failure. No pagination applies.
 
 Prove replacement with [authentication tests](../test/investor_authentication_test.dart), [signup tests](../test/investor_signup_test.dart), [mock login/session tests](../test/qa_login_test.dart) and [native auth journey](../integration_test/investor_auth_flow_test.dart). Add staging tests for expired challenge, wrong/used OTP, cancellation, duplicate submission, revoked session and refresh races.
 

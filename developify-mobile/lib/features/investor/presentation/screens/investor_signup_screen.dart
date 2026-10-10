@@ -54,7 +54,9 @@ class _InvestorSignupScreenState extends State<InvestorSignupScreen> {
   Future<void> _create() async {
     FocusManager.instance.primaryFocus?.unfocus();
     await store.createProfile();
-    if (mounted && store.stage == InvestorSignupStage.verification) {
+    if (mounted &&
+        store.isMock &&
+        store.stage == InvestorSignupStage.verification) {
       final notice = showSimulationNotice(
         context,
         'Demo verification: use 123456. No email or SMS is sent.',
@@ -206,10 +208,15 @@ class _InvestorSignupScreenState extends State<InvestorSignupScreen> {
         Text.rich(
           TextSpan(
             children: [
-              const TextSpan(text: 'Enter the code sent to\n'),
               TextSpan(
-                text:
-                    '${store.values['email']} / ${store.dialCode} ${store.values['phone']}.  ',
+                text: store.usesFirebaseEmailLink
+                    ? 'Open the verification link sent to\n'
+                    : 'Enter the code sent to\n',
+              ),
+              TextSpan(
+                text: store.usesFirebaseEmailLink
+                    ? '${store.values['email']}.  '
+                    : '${store.values['email']} / ${store.dialCode} ${store.values['phone']}.  ',
                 style: AppTextStyles.text(16, weight: FontWeight.w700),
               ),
               TextSpan(
@@ -226,57 +233,66 @@ class _InvestorSignupScreenState extends State<InvestorSignupScreen> {
           ),
         ),
         SizedBox(height: 19.w),
-        CodeField(
-          length: 6,
-          enabled: !store.busy,
-          value: store.code,
-          invalid: store.codeRejected,
-          onChanged: store.setCode,
-          onSubmitted: _verify,
-        ),
-        SizedBox(height: 17.w),
-        Semantics(
-          button: true,
-          child: InkWell(
-            onTap: store.resendSeconds == 0 && !store.busy
-                ? () {
-                    store.resend();
-                    showFeedback(
-                      context,
-                      'Verification code simulated. Use 123456.',
-                    );
-                  }
-                : null,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(minHeight: 44),
-              child: Align(
-                alignment: Alignment.center,
-                child: Text.rich(
-                  TextSpan(
-                    children: [
-                      const TextSpan(text: 'Didn’t get it?  '),
-                      TextSpan(
-                        text: store.resendSeconds > 0
-                            ? 'Resend in 0:${store.resendSeconds.toString().padLeft(2, '0')}'
-                            : 'Resend code',
-                        style: AppTextStyles.text(
-                          16,
-                          weight: FontWeight.w600,
-                          color: AppColors.primary,
+        if (store.usesFirebaseEmailLink)
+          Text(
+            'After verifying, return here and tap “I verified my email”.',
+            style: AppTextStyles.text(14, color: AppColors.muted),
+          )
+        else
+          CodeField(
+            length: 6,
+            enabled: !store.busy,
+            value: store.code,
+            invalid: store.codeRejected,
+            onChanged: store.setCode,
+            onSubmitted: _verify,
+          ),
+        if (!store.usesFirebaseEmailLink) SizedBox(height: 17.w),
+        if (!store.usesFirebaseEmailLink)
+          Semantics(
+            button: true,
+            child: InkWell(
+              onTap: store.resendSeconds == 0 && !store.busy && store.isMock
+                  ? () {
+                      store.resend();
+                      showFeedback(
+                        context,
+                        'Verification code simulated. Use 123456.',
+                      );
+                    }
+                  : null,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 44),
+                child: Align(
+                  alignment: Alignment.center,
+                  child: Text.rich(
+                    TextSpan(
+                      children: [
+                        const TextSpan(text: 'Didn’t get it?  '),
+                        TextSpan(
+                          text: store.resendSeconds > 0
+                              ? 'Resend in 0:${store.resendSeconds.toString().padLeft(2, '0')}'
+                              : store.isMock
+                              ? 'Resend code'
+                              : 'Check your email for the code',
+                          style: AppTextStyles.text(
+                            16,
+                            weight: FontWeight.w600,
+                            color: AppColors.primary,
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                  style: AppTextStyles.text(
-                    16,
-                    color: AppColors.iconMuted,
-                    height: 19 / 16,
+                      ],
+                    ),
+                    style: AppTextStyles.text(
+                      16,
+                      color: AppColors.iconMuted,
+                      height: 19 / 16,
+                    ),
                   ),
                 ),
               ),
             ),
           ),
-        ),
       ],
     ),
   );
@@ -325,7 +341,10 @@ class _InvestorSignupScreenState extends State<InvestorSignupScreen> {
     final VoidCallback? action = switch (stage) {
       InvestorSignupStage.details => store.detailsFilled ? _create : null,
       InvestorSignupStage.verification =>
-        store.code.length == 6 && !store.codeRejected ? _verify : null,
+        store.usesFirebaseEmailLink ||
+                (store.code.length == 6 && !store.codeRejected)
+            ? _verify
+            : null,
       InvestorSignupStage.verified => store.continueVerified,
       InvestorSignupStage.pin => store.pin.length == 4 ? _continuePin : null,
       InvestorSignupStage.biometrics => store.beginFingerprint,
@@ -340,7 +359,8 @@ class _InvestorSignupScreenState extends State<InvestorSignupScreen> {
           key: const ValueKey('investor-signup-continue'),
           label: switch (stage) {
             InvestorSignupStage.details => 'Create account',
-            InvestorSignupStage.verification => 'Verify',
+            InvestorSignupStage.verification =>
+              store.usesFirebaseEmailLink ? 'I verified my email' : 'Verify',
             _ => 'Continue',
           },
           loading: store.busy,

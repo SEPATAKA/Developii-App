@@ -33,6 +33,7 @@ abstract class InvestorSignupStoreBase with Store, Lifecycle {
     this._session,
     this._authorization, {
     this.entity = EntityType.individual,
+    this.isMock = true,
   }) {
     if (entity == EntityType.company) {
       representatives = const [
@@ -43,6 +44,8 @@ abstract class InvestorSignupStoreBase with Store, Lifecycle {
   final AuthRepository _repository;
   final SessionService _session;
   final TransactionAuthorization _authorization;
+  final bool isMock;
+  bool get usesFirebaseEmailLink => _repository.usesFirebaseEmailLink;
   final Cancellation _cancellation = Cancellation();
   Timer? _resendTimer;
   Timer? _faceTimer;
@@ -299,7 +302,8 @@ abstract class InvestorSignupStoreBase with Store, Lifecycle {
         stage != InvestorSignupStage.verification) {
       return false;
     }
-    if (!RegExp(r'^\d{6}$').hasMatch(code)) {
+    if (!_repository.usesFirebaseEmailLink &&
+        !RegExp(r'^\d{6}$').hasMatch(code)) {
       error = 'Enter the six-digit verification code.';
       return false;
     }

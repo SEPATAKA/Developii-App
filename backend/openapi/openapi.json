@@ -1,6 +1,54 @@
 {
   "openapi": "3.0.0",
   "paths": {
+    "/v1/auth/firebase/session": {
+      "post": {
+        "operationId": "AuthController_firebaseSession",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FirebaseIdTokenDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/v1/auth/admin/firebase-session": {
+      "post": {
+        "operationId": "AuthController_firebaseAdminSession",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FirebaseIdTokenDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
     "/v1/auth/sign-in": {
       "post": {
         "operationId": "AuthController_signIn",
@@ -130,7 +178,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ChallengeIdDto"
+                "$ref": "#/components/schemas/InvestorCompleteDto"
               }
             }
           }
@@ -1569,6 +1617,10 @@
       }
     },
     "schemas": {
+      "FirebaseIdTokenDto": {
+        "type": "object",
+        "properties": {}
+      },
       "SignInDto": {
         "type": "object",
         "properties": {}
@@ -1586,6 +1638,10 @@
         "properties": {}
       },
       "ChallengeCodeDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "InvestorCompleteDto": {
         "type": "object",
         "properties": {}
       },

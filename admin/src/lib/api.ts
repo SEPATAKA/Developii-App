@@ -1,3 +1,5 @@
+import { firebaseAuth } from '@/lib/firebase';
+
 export type AdminSession = {
   accessToken: string;
   admin: { id: string; email: string; name: string; role: string };
@@ -35,6 +37,11 @@ export async function api<T>(
   if (session?.accessToken) {
     headers.set('Authorization', `Bearer ${session.accessToken}`);
   }
+  const firebaseUser = firebaseAuth.currentUser;
+  const token = firebaseUser
+    ? await firebaseUser.getIdToken()
+    : session?.accessToken;
+  if (token) headers.set('Authorization', `Bearer ${token}`);
   const res = await fetch(`${API_URL}${path}`, { ...init, headers });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));

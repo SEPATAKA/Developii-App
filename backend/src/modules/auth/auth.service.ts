@@ -7,7 +7,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as argon2 from 'argon2';
-import { createHash, randomInt } from 'crypto';
+import { createHash, randomBytes, randomInt } from 'crypto';
 import {
   ChallengePurpose,
   EntityType,
@@ -19,6 +19,7 @@ import { MailService } from '../mail/mail.service';
 import { RedisService } from '../common/redis.service';
 import { LedgerService } from '../ledger/ledger.service';
 import { allocateInvestorNumber } from './investor-number';
+import { FirebaseAdminService } from '../../firebase/firebase-admin.service';
 
 export type AppUserDto = {
   id: string;
@@ -43,7 +44,100 @@ export class AuthService {
     private mail: MailService,
     private redis: RedisService,
     private ledger: LedgerService,
+    private firebase: FirebaseAdminService,
   ) {}
+
+  async firebaseUserSession(idToken: string) {
+    let identity: Awaited<ReturnType<FirebaseAdminService['verifyIdToken']>>;
+    try {
+      identity = await this.firebase.verifyIdToken(idToken);
+    } catch {
+      throw new UnauthorizedException('Firebase sign-in token is invalid or expired.');
+    }
+    const email = identity.email?.toLowerCase().trim();
+    if (!email || identity.email_verified !== true) {
+      throw new UnauthorizedException('Verify your email address before signing in.');
+    }
+    const profile = await this.firebase.findUserSessionProfile(email);
+    if (!profile) {
+      throw new UnauthorizedException('No Developify user profile exists for this account.');
+    }
+    if (profile.locked === true) {
+      throw new UnauthorizedException('This Developify account is unavailable.');
+    }
+    const user = {
+      id: profile.id,
+      name: String(profile.name ?? ''),
+      email,
+      phone: String(profile.phone ?? ''),
+      address: String(profile.address ?? ''),
+      hasProfilePhoto: profile.hasProfilePhoto === true,
+      countryCode: String(profile.countryCode ?? 'ZA'),
+      nonResident: profile.nonResident === true,
+      investorNumber:
+        typeof profile.investorNumber === 'string' ? profile.investorNumber : null,
+      memberships: profile.memberships.map((membership) => ({
+        experience: membership.experience as Experience,
+      })),
+      entities: profile.entities.map((entity) => ({
+        id: String(entity.id ?? ''),
+        entityType: entity.entityType as EntityType,
+      })),
+    };
+    const primaryEntity = user.entities[0];
+    if (
+      !(await this.firebase.linkProfileByEmail('users', email, identity.uid))
+    ) {
+      throw new UnauthorizedException('This account is linked to another identity.');
+    }
+    return {
+      user: this.toAppUser(user, primaryEntity?.entityType),
+      accessToken: idToken,
+    };
+  }
+
+  async firebaseAdminSession(idToken: string) {
+    let identity: Awaited<ReturnType<FirebaseAdminService['verifyIdToken']>>;
+    try {
+      identity = await this.firebase.verifyIdToken(idToken);
+    } catch {
+      throw new UnauthorizedException('Firebase sign-in token is invalid or expired.');
+    }
+    const email = identity.email?.toLowerCase().trim();
+    if (!email || identity.email_verified !== true) {
+      throw new UnauthorizedException('Verify your email address before signing in.');
+    }
+    const profile = await this.firebase.findProfileByEmail('adminUsers', email);
+    if (!profile) {
+      throw new UnauthorizedException('This Firebase account is not an authorized admin.');
+    }
+    const role = profile.get('role');
+    if (
+      profile.get('locked') === true ||
+      typeof role !== 'string' ||
+      !['admin', 'ops', 'compliance'].includes(role)
+    ) {
+      throw new UnauthorizedException('This admin account is unavailable.');
+    }
+    if (
+      !(await this.firebase.linkProfileByEmail(
+        'adminUsers',
+        email,
+        identity.uid,
+      ))
+    ) {
+      throw new UnauthorizedException('This account is linked to another identity.');
+    }
+    return {
+      accessToken: idToken,
+      admin: {
+        id: profile.id,
+        email,
+        name: String(profile.get('name') ?? ''),
+        role,
+      },
+    };
+  }
 
   private async allocateUniqueInvestorNumber(
     tx: PrismaService | Prisma.TransactionClient = this.prisma,
@@ -172,10 +266,27 @@ export class AuthService {
     name: string;
     email: string;
     phone: string;
-    password: string;
+    password?: string;
     countryCode?: string;
+    entity?: EntityType;
+    idToken?: string;
   }) {
     const email = input.email.toLowerCase().trim();
+    const identity = input.idToken
+      ? await this.firebase.verifyIdToken(input.idToken)
+      : null;
+    if (
+      identity &&
+      identity.email?.toLowerCase().trim() !== email
+    ) {
+      throw new UnauthorizedException('Firebase account email does not match.');
+    }
+    if (!identity && !input.password) {
+      throw new BadRequestException('A password is required for legacy account creation.');
+    }
+    if (identity && (await this.firebase.findProfileByEmail('users', email))) {
+      throw new ConflictException('A Developify profile already exists for this email.');
+    }
     const existing = await this.prisma.user.findUnique({ where: { email } });
     if (existing) {
       throw new ConflictException({
@@ -184,7 +295,9 @@ export class AuthService {
         fieldErrors: { email: 'Email is already registered.' },
       });
     }
-    const passwordHash = await argon2.hash(input.password);
+    const passwordHash = await argon2.hash(
+      identity ? randomBytes(32).toString('hex') : input.password!,
+    );
     const user = await this.prisma.$transaction(async (tx) => {
       const investorNumber = await this.allocateUniqueInvestorNumber(tx);
       return tx.user.create({
@@ -196,6 +309,9 @@ export class AuthService {
           passwordHash,
           investorNumber,
           memberships: { create: [{ experience: Experience.landowner }] },
+          ...(input.entity
+            ? { entities: { create: [{ entityType: input.entity }] } }
+            : {}),
         preferences: {
           create: {
             channels: {
@@ -217,7 +333,15 @@ export class AuthService {
         include: { memberships: true, entities: true },
       });
     });
-    const tokens = await this.issueTokens(user);
+    if (
+      identity &&
+      !(await this.firebase.saveRegisteredUserProfile(user, identity.uid))
+    ) {
+      throw new ConflictException('A Developify profile already exists for this email.');
+    }
+    const tokens = identity
+      ? { accessToken: input.idToken }
+      : await this.issueTokens(user);
     return { user: this.toAppUser(user), ...tokens };
   }
 
@@ -225,7 +349,8 @@ export class AuthService {
     name: string;
     email: string;
     phone: string;
-    password: string;
+    password?: string;
+    firebaseAuth?: boolean;
     entity: EntityType;
     nonResident?: boolean;
     countryCode?: string;
@@ -239,13 +364,19 @@ export class AuthService {
         fieldErrors: { email: 'Email is already registered.' },
       });
     }
-    const code = this.otpCode();
-    const passwordHash = await argon2.hash(input.password);
+    if (!input.firebaseAuth && !input.password) {
+      throw new BadRequestException('A password is required for legacy account creation.');
+    }
+    const code = input.firebaseAuth ? null : this.otpCode();
+    const passwordHash =
+      input.firebaseAuth || !input.password
+        ? undefined
+        : await argon2.hash(input.password);
     const challenge = await this.prisma.authChallenge.create({
       data: {
         email,
         purpose: ChallengePurpose.investorRegistration,
-        codeHash: this.hashToken(code),
+        codeHash: this.hashToken(code ?? randomBytes(32).toString('hex')),
         expiresAt: new Date(
           Date.now() +
             Number(this.config.get('OTP_TTL_MINUTES', 15)) * 60 * 1000,
@@ -253,14 +384,15 @@ export class AuthService {
         payload: {
           name: input.name,
           phone: input.phone,
-          passwordHash,
+          ...(passwordHash ? { passwordHash } : {}),
+          firebaseAuth: input.firebaseAuth ?? false,
           entity: input.entity,
           nonResident: input.nonResident ?? false,
           countryCode: input.countryCode ?? 'ZA',
         },
       },
     });
-    await this.mail.sendOtp(email, code, 'registration');
+    if (code) await this.mail.sendOtp(email, code, 'registration');
     return { challengeId: challenge.id };
   }
 
@@ -302,11 +434,11 @@ export class AuthService {
     return { ok: true };
   }
 
-  async completeInvestorRegistration(challengeId: string) {
+  async completeInvestorRegistration(challengeId: string, idToken?: string) {
     const challenge = await this.prisma.authChallenge.findUnique({
       where: { id: challengeId },
     });
-    if (!challenge?.verified || challenge.expiresAt < new Date()) {
+    if (!challenge || challenge.expiresAt < new Date()) {
       throw new BadRequestException({
         kind: 'validation',
         message: 'Registration challenge is not verified.',
@@ -315,11 +447,37 @@ export class AuthService {
     const payload = challenge.payload as {
       name: string;
       phone: string;
-      passwordHash: string;
+      passwordHash?: string;
+      firebaseAuth?: boolean;
       entity: EntityType;
       nonResident: boolean;
       countryCode: string;
     };
+    if (payload.firebaseAuth && !idToken) {
+      throw new UnauthorizedException(
+        'Complete this registration using Firebase Authentication.',
+      );
+    }
+    const identity = idToken
+      ? await this.firebase.verifyIdToken(idToken)
+      : null;
+    if (
+      identity &&
+      identity.email?.toLowerCase().trim() !== challenge.email.toLowerCase().trim()
+    ) {
+      throw new UnauthorizedException('Firebase account email does not match.');
+    }
+    if (payload.firebaseAuth && identity?.email_verified !== true) {
+      throw new UnauthorizedException(
+        'Verify your email using the Firebase link before continuing.',
+      );
+    }
+    if (!payload.firebaseAuth && !challenge.verified) {
+      throw new BadRequestException({
+        kind: 'validation',
+        message: 'Registration challenge is not verified.',
+      });
+    }
     const user = await this.prisma.$transaction(async (tx) => {
       const investorNumber = await this.allocateUniqueInvestorNumber(tx);
       const created = await tx.user.create({
@@ -327,7 +485,10 @@ export class AuthService {
           email: challenge.email,
           name: payload.name,
           phone: payload.phone,
-          passwordHash: payload.passwordHash,
+          passwordHash:
+            identity || !payload.passwordHash
+              ? await argon2.hash(randomBytes(32).toString('hex'))
+              : payload.passwordHash,
           countryCode: payload.countryCode,
           nonResident: payload.nonResident,
           investorNumber,
@@ -356,13 +517,20 @@ export class AuthService {
       where: { id: user.created.id },
       include: { memberships: true, entities: true },
     });
+    if (identity) {
+      if (!(await this.firebase.saveRegisteredUserProfile(full, identity.uid))) {
+        throw new ConflictException(
+          'A Developify profile already exists for this email.',
+        );
+      }
+    }
     const tokens = await this.issueTokens(full, {
       entityId: user.entity.id,
       entityType: user.entity.entityType,
     });
     return {
       user: this.toAppUser(full, user.entity.entityType),
-      ...tokens,
+      ...(identity ? { accessToken: idToken } : tokens),
     };
   }
 

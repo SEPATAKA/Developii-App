@@ -5,6 +5,8 @@ import 'package:developify_mobile/features/shared/domain/app_user.dart';
 import 'package:developify_mobile/features/authentication/domain/landowner_registration.dart';
 
 abstract interface class AuthRepository {
+  bool get emailVerificationPending;
+  bool get usesFirebaseEmailLink;
   Future<Result<String>> beginInvestorRegistration(
     InvestorRegistration registration, {
     Cancellation? cancellation,

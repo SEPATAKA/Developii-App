@@ -12,6 +12,12 @@ final class MockAuthRepository implements AuthRepository {
 
   final MockBehavior behavior;
 
+  @override
+  bool get emailVerificationPending => false;
+
+  @override
+  bool get usesFirebaseEmailLink => false;
+
   bool _recoveryRequested = false;
   bool _recoveryVerified = false;
 

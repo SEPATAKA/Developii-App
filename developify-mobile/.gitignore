@@ -50,6 +50,8 @@ coverage/
 **/google-services.json
 **/GoogleService-Info.plist
 lib/firebase_options.dart
+!android/app/google-services.json
+!lib/firebase_options.dart
 
 # Native signing and generated output
 **/DerivedData/

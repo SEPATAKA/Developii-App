@@ -10,12 +10,10 @@ import 'package:developify_mobile/core/storage/token_storage.dart';
 final class ApiClient {
   ApiClient({
     required AppEnvironment environment,
-    required TokenStorage tokens,
+    required this._tokens,
     Dio? dio,
-    Future<bool> Function()? onRefresh,
+    this._onRefresh,
   }) : _environment = environment,
-       _tokens = tokens,
-       _onRefresh = onRefresh,
        _dio = dio ?? Dio() {
     _dio.options = BaseOptions(
       baseUrl: environment.apiUri?.toString() ?? '',
@@ -57,7 +55,7 @@ final class ApiClient {
   }
 
   final AppEnvironment _environment;
-  final TokenStorage _tokens;
+  final AuthTokenProvider _tokens;
   final Dio _dio;
   Future<bool> Function()? _onRefresh;
   Future<bool>? _refreshInflight;

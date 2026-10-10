@@ -44,17 +44,17 @@ For iOS on macOS, run `flutter pub get --enforce-lockfile` before `(cd ios && po
 
 | Key | Parser, default and meaning | Safe example |
 | --- | --- | --- |
-| `MOCK_MODE` | `bool.fromEnvironment`, defaults true. False makes registered mock operations unavailable; does not install live repositories. | `true` |
+| `MOCK_MODE` | `bool.fromEnvironment`, defaults false. With a valid `API_BASE_URL`, false selects the live backend repositories; true explicitly forces mocks. If no valid API URL is configured, the app uses mocks. | `false` |
 | `MOCK_SCENARIO` | String mapped to the cases below; unknown values fall back to success. | `success` |
 | `MOCK_DELAY_MS` | `int.fromEnvironment`, defaults 350 milliseconds; malformed values use the default. Use a nonnegative value; the parser itself does not clamp negatives. | `350` |
-| `API_BASE_URL` | String, defaults empty. `apiUri` accepts only HTTPS with host and no user-info, query or fragment. Only needed once API adapters are implemented. | `https://api.example.com` (illustration only) |
-| `FIREBASE_ENABLED` | `bool.fromEnvironment`, defaults false. Attempts optional Firebase initialization when true; configuration failure falls back to no-ops. | `false` |
+| `API_BASE_URL` | String, defaults empty. A valid URL plus `MOCK_MODE=false` (the default) selects the live backend repositories. Live mode fails at startup when the URL is absent or invalid; mock repositories are never selected implicitly. `apiUri` accepts HTTPS, or HTTP for localhost, 127.0.0.1 and 10.0.2.2, with no user-info, query or fragment. | `https://api.example.com` (illustration only) |
+| `FIREBASE_ENABLED` | `bool.fromEnvironment`, defaults false. Enables Firebase initialization and makes live mobile sign-in and registration use Firebase Authentication. | `false` |
 | `TELEMETRY_ENABLED` | `bool.fromEnvironment`, defaults false. Gates analytics/crash/performance collection after Firebase initialization. | `false` |
 | `ONESIGNAL_APP_ID` | String, defaults empty. Empty/whitespace disables initialization; a nonempty value attempts initialization independently of mock/Firebase flags. | Explicit empty value |
 
 Supported scenario strings: `success`, `empty`, `network_failure`, `low_balance`, `incomplete_kyc`, `pending_verification`, `rejected_verification`, `no_projects`, `no_transactions`, `no_notifications`, `no_portfolio`, `withdrawal_unavailable`, `payment_method_unavailable`, `validation_failure`, `missing_item`. Applicability varies by repository. `network_failure` fails the first request on each affected repository behavior and then permits retry.
 
-For bool defines, use literal `true` or `false`. Keep the explicit empty OneSignal define in verification commands, and avoid personal IDE launch profiles or `--dart-define-from-file` inputs. No approved Firebase client options, Google services files or OneSignal App ID are supplied. An API URL by itself does not connect auth or any repository.
+For bool defines, use literal `true` or `false`. Keep the explicit empty OneSignal define in verification commands, and avoid personal IDE launch profiles or `--dart-define-from-file` inputs. Firebase client options are generated in `lib/firebase_options.dart` for the registered Android, iOS and web applications; Android also uses `android/app/google-services.json`. These client identifiers are not server credentials. Firebase Authentication, Firestore application repositories and the production API remain separate integrations; enabling telemetry does not connect them.
 
 ## Build and native tests
 
@@ -68,6 +68,32 @@ flutter run --target lib/main.dart \
   --dart-define=TELEMETRY_ENABLED=false \
   --dart-define=ONESIGNAL_APP_ID=
 ```
+
+Launch against the local backend (investor registration is inserted after OTP verification and completion of the security steps):
+
+```sh
+flutter run -d web-server --web-hostname 127.0.0.1 --web-port 59495 --target lib/main.dart \
+  --dart-define=API_BASE_URL=http://localhost:3000 \
+  --dart-define=MOCK_MODE=false \
+  --dart-define=FIREBASE_ENABLED=true \
+  --dart-define=TELEMETRY_ENABLED=false \
+  --dart-define=ONESIGNAL_APP_ID=
+```
+
+Firebase live sign-in and signup require Firebase Authentication (Email/Password) enabled in the project, valid Firebase Admin credentials configured for the backend, and the matching API URL. Both landowner and investor signup send Firebase's email-verification link. After opening the link, return to investor signup and confirm verification to finish creating the account. Passwords are sent directly to Firebase Authentication, not to the backend for Firebase-enabled registrations.
+
+Launch the mock app with Firebase telemetry enabled:
+
+```sh
+flutter run -d chrome --target lib/main.dart \
+  --dart-define=MOCK_MODE=true \
+  --dart-define=MOCK_SCENARIO=success \
+  --dart-define=FIREBASE_ENABLED=true \
+  --dart-define=TELEMETRY_ENABLED=true \
+  --dart-define=ONESIGNAL_APP_ID=
+```
+
+This enables Analytics, Performance Monitoring and Remote Config where supported; Crashlytics is native-only and remains a no-op on web. Mock mode still uses mock accounts and repositories; use the live backend launch above to exercise Firebase signup and sign-in.
 
 Normal Android build (temporary validation output):
 

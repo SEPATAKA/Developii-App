@@ -112,7 +112,15 @@ class _SignupScreenState extends State<SignupScreen> {
                         Observer(
                           builder: (_) => Padding(
                             padding: EdgeInsets.symmetric(horizontal: 12.w),
-                            child: InlineError(widget.store.error),
+                            child: widget.store.verificationSent
+                                ? Text(
+                                    'Account created. Check your email and verify your address before signing in.',
+                                    style: AppTextStyles.text(
+                                      14,
+                                      color: AppColors.muted,
+                                    ),
+                                  )
+                                : InlineError(widget.store.error),
                           ),
                         ),
                         const Spacer(),
@@ -121,10 +129,14 @@ class _SignupScreenState extends State<SignupScreen> {
                           child: Observer(
                             builder: (_) => AppButton(
                               key: const ValueKey('create-landowner-account'),
-                              label: 'Create account',
+                              label: widget.store.verificationSent
+                                  ? 'Go to sign in'
+                                  : 'Create account',
                               loading:
                                   widget.store.status == LoadStatus.loading,
-                              onPressed: choosing
+                              onPressed: widget.store.verificationSent
+                                  ? () => context.goNamed(Routes.signIn)
+                                  : choosing
                                   ? () =>
                                         unawaited(widget.store.createAccount())
                                   : widget.store.canAttemptDetails

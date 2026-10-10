@@ -1,4 +1,11 @@
-import { IsEmail, IsEnum, IsOptional, IsString, MinLength } from 'class-validator';
+import {
+  IsBoolean,
+  IsEmail,
+  IsEnum,
+  IsOptional,
+  IsString,
+  MinLength,
+} from 'class-validator';
 import { EntityType } from '@prisma/client';
 
 export class SignInDto {
@@ -22,13 +29,23 @@ export class LandownerRegisterDto {
   @MinLength(1)
   phone!: string;
 
+  @IsOptional()
   @IsString()
   @MinLength(8)
-  password!: string;
+  password?: string;
 
   @IsOptional()
   @IsString()
   countryCode?: string;
+
+  @IsOptional()
+  @IsEnum(EntityType)
+  entity?: EntityType;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(20)
+  idToken?: string;
 }
 
 export class InvestorBeginDto {
@@ -43,12 +60,17 @@ export class InvestorBeginDto {
   @MinLength(1)
   phone!: string;
 
+  @IsOptional()
   @IsString()
   @MinLength(8)
-  password!: string;
+  password?: string;
 
   @IsEnum(EntityType)
   entity!: EntityType;
+
+  @IsOptional()
+  @IsBoolean()
+  firebaseAuth?: boolean;
 
   @IsOptional()
   nonResident?: boolean;
@@ -72,6 +94,13 @@ export class ChallengeIdDto {
   @IsString()
   @MinLength(1)
   challengeId!: string;
+}
+
+export class InvestorCompleteDto extends ChallengeIdDto {
+  @IsOptional()
+  @IsString()
+  @MinLength(20)
+  idToken?: string;
 }
 
 export class RecoveryRequestDto {
