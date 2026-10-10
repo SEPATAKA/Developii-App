@@ -1,0 +1,13 @@
+# Ignore nested Git repositories
+**/.git/
+.git/
+
+# Flutter generated files
+**/.dart_tool/
+**/build/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+
+# Secrets
+**/.env
+**/.env.*
